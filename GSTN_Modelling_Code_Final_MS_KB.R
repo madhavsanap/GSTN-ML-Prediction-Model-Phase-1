@@ -1,4 +1,6 @@
 
+########################################### GSTN ML Model Development  ########################################### 
+
 #### Importing required libraries
 library(dplyr)
 library(ROCR)
@@ -64,6 +66,18 @@ na_cnt%>%filter(cnt>0)%>%mutate(perc=round(100*cnt/nrow(overall_data),2))%>%arra
 # 8  Column8   5084  0.49
 # 9  Column0     11  0.00
 
+########## imputing NA values by average in train data
+overall_data$Column0[is.na(overall_data$Column0)==TRUE]=mean(train_overall_data$Column0[is.na(train_overall_data$Column0)==FALSE]) # 0
+overall_data$Column3[is.na(overall_data$Column3)==TRUE]=mean(train_overall_data$Column3[is.na(train_overall_data$Column3)==FALSE]) # 0.6781394
+overall_data$Column4[is.na(overall_data$Column4)==TRUE]=mean(train_overall_data$Column4[is.na(train_overall_data$Column4)==FALSE]) # 0.7014035
+overall_data$Column5[is.na(overall_data$Column5)==TRUE]=mean(train_overall_data$Column5[is.na(train_overall_data$Column5)==FALSE]) # -0.00746865
+overall_data$Column6[is.na(overall_data$Column6)==TRUE]=mean(train_overall_data$Column6[is.na(train_overall_data$Column6)==FALSE]) # -0.4079391
+overall_data$Column8[is.na(overall_data$Column8)==TRUE]=mean(train_overall_data$Column8[is.na(train_overall_data$Column8)==FALSE]) # 0.1220851
+overall_data$Column9[is.na(overall_data$Column9)==TRUE]=mean(train_overall_data$Column9[is.na(train_overall_data$Column9)==FALSE]) # -0.08182017
+overall_data$Column14[is.na(overall_data$Column14)==TRUE]=mean(train_overall_data$Column14[is.na(train_overall_data$Column14)==FALSE]) # 0.001350606
+overall_data$Column15[is.na(overall_data$Column15)==TRUE]=mean(train_overall_data$Column15[is.na(train_overall_data$Column15)==FALSE]) #0.003390099
+
+
 ########################## Modelling started - Using All vars ########################## 
 
 predictors=overall_data %>% select(Column0:Column21)%>%colnames()
@@ -81,11 +95,11 @@ dtrain = xgb.DMatrix(data.matrix(overall_data[overall_data$segment=="train",pred
 doverall = xgb.DMatrix(data.matrix(overall_data[,predictors]),
                        label=overall_data[["target"]])
 
-### selecting important vars
+### selecting important vars / feature selection
 
 set.seed(51)
 xgb_sel=xgboost(dtrain,
-                max_depth=3,nrounds = 1000,objective = "binary:logistic",
+                max_depth=3,nrounds = 700,objective = "binary:logistic",
                 min_child_weight=1,verbose = F,eval_metric="auc",subsample=0.75,colsample_bytree=0.5,eta=0.01)
 gc()
 
@@ -93,11 +107,46 @@ xgb_imp=xgb.importance(model=xgb_sel,feature_names = predictors) %>%data.frame()
 dim(xgb_imp) #22  5
 xgb_vars= xgb_imp$Feature
 
-(top_vars=xgb_imp %>% filter(cumul_gain<=.9995)%>% pull(Feature))
-# [1] "Column18" "Column1"  "Column17" "Column7"  "Column4"  "Column5"  "Column14" "Column3"  "Column8"  "Column19" "Column6" 
-# [12] "Column20" "Column2"  "Column15" "Column0"  "Column21" "Column12"
+xgb_imp
+# Feature         Gain        Cover    Frequency cumul_gain
+# 1  Column18 7.532772e-01 0.2034584426 0.1125478927  0.7532772
+# 2   Column1 1.307029e-01 0.2723176584 0.2772988506  0.8839801
+# 3  Column17 2.755278e-02 0.0631700888 0.0625000000  0.9115329
+# 4   Column4 1.962328e-02 0.0884798024 0.0730363985  0.9311562
+# 5   Column7 1.937601e-02 0.0373394192 0.0804597701  0.9505322
+# 6  Column14 1.036323e-02 0.0871759568 0.0742337165  0.9608954
+# 7  Column19 8.373582e-03 0.0344074632 0.0217911877  0.9692690
+# 8   Column8 7.172288e-03 0.0600432601 0.0490900383  0.9764413
+# 9   Column5 6.888451e-03 0.0237882628 0.0383141762  0.9833297
+# 10  Column3 6.244543e-03 0.0465915611 0.0727969349  0.9895743
+# 11  Column6 4.012592e-03 0.0193871892 0.0457375479  0.9935869
+# 12 Column20 2.704474e-03 0.0226898286 0.0148467433  0.9962913
+# 13 Column15 1.167231e-03 0.0122846766 0.0225095785  0.9974586
+# 14 Column21 5.514258e-04 0.0078416394 0.0045498084  0.9980100
+# 15 Column12 4.616169e-04 0.0058171552 0.0076628352  0.9984716
+# 16  Column2 4.345735e-04 0.0046343395 0.0146072797  0.9989062
+# 17  Column0 3.606562e-04 0.0030695962 0.0076628352  0.9992668
+# 18 Column11 2.608564e-04 0.0028071331 0.0045498084  0.9995277
+# 19 Column10 1.850266e-04 0.0012755374 0.0040708812  0.9997127
+# 20 Column13 1.713449e-04 0.0022744840 0.0038314176  0.9998841
+# 21  Column9 1.061289e-04 0.0007745316 0.0069444444  0.9999902
+# 22 Column16 9.805767e-06 0.0003719739 0.0009578544  1.0000000
 
-length(top_vars) #17
+(top_vars=xgb_imp %>% filter(cumul_gain<=.9999)%>% pull(Feature))
+# [1] "Column18" "Column1"  "Column17" "Column4"  "Column7"  "Column14" "Column19" "Column8"  "Column5"  "Column3"  "Column6" 
+# [12] "Column20" "Column15" "Column21" "Column12" "Column2"  "Column0"  "Column11" "Column10" "Column13"
+
+length(top_vars) #20
+
+predictors= top_vars
+
+dtrain = xgb.DMatrix(data.matrix(overall_data[overall_data$segment=="train",predictors]),
+                     label=overall_data[overall_data$segment=="train",][["target"]])
+
+doverall = xgb.DMatrix(data.matrix(overall_data[,predictors]),
+                       label=overall_data[["target"]])
+
+########### First iteration 
 
 params_1 = list(objective = "binary:logistic",
                 eval_metric="auc",
@@ -125,9 +174,9 @@ overall_data$pred_vals=predict(xgb_model,newdata = doverall) #dtrain
 g1 <- roc(target ~ pred_vals, data = overall_data %>% filter(segment=="train"));g1
 coords(g1, "best", transpose = FALSE)
 # threshold specificity sensitivity
-# 1 0.1642218   0.9678639   0.9976497
+# 1 0.1399288   0.9667318   0.9984872
 
-overall_data$pred_vals_final = ifelse(overall_data$pred_vals >0.1642218, 1, 0)
+overall_data$pred_vals_final = ifelse(overall_data$pred_vals >0.1399288, 1, 0)
 
 #### performance of train data
 
@@ -136,8 +185,8 @@ train_data = overall_data %>% filter(segment == "train")
 confusion_matrix = table(train_data$pred_vals_final,train_data$target)
 confusion_matrix
 #       0      1
-# 0 688248    174
-# 1  22852  73859
+# 0 687443    112
+# 1  23657  73921
 
 accuracy  = (confusion_matrix[1,1]+confusion_matrix[2,2])/nrow(train_data)
 precision = (confusion_matrix[2,2])/sum(train_data$pred_vals_final)
@@ -154,17 +203,17 @@ logloss_val=LogLoss(train_data$target,train_data$pred_vals)
 #bal_accuracy(truth = as.numeric(train_data$target),estimate = (train_data$pred_vals_final))
 
 
-data.frame(accuracy=accuracy,
-           precision=precision,
-           sensitivity=sensitivity,
-           specificity=specificity,
-           auc=auc,
-           f1_score=f1_score,
-           logloss= logloss_val
+train_performance=data.frame(accuracy=accuracy,
+                             precision=precision,
+                             sensitivity=sensitivity,
+                             specificity=specificity,
+                             auc=auc,
+                             f1_score=f1_score,
+                             logloss= logloss_val
 )
-
+train_performance
 # accuracy precision sensitivity specificity       auc  f1_score    logloss
-# 1 0.9706725 0.7637084   0.9976497   0.9678639 0.9940543 0.9835472 0.05334938
+# 1 0.9697261 0.7575581   0.9984872   0.9667318 0.9940086 0.9830058 0.05346147
 
 #### performance of test data
 
@@ -173,8 +222,8 @@ test_data = overall_data %>% filter(segment == "test")
 confusion_matrix = table(test_data$pred_vals_final,test_data$target)
 confusion_matrix
 #       0      1
-# 0 229307     50
-# 1   7727  24628
+# 0 229051     36
+# 1   7983  24642
 
 accuracy  = (confusion_matrix[1,1]+confusion_matrix[2,2])/nrow(test_data)
 precision = (confusion_matrix[2,2])/sum(test_data$pred_vals_final)
@@ -190,7 +239,7 @@ f1_score=F1_Score(test_data$target,test_data$pred_vals_final)
 logloss_val=LogLoss(test_data$target,test_data$pred_vals)
 #bal_accuracy(truth = as.numeric(test_data$target),estimate = (test_data$pred_vals_final))
 
-data.frame(accuracy=accuracy,
+Test_performance=data.frame(accuracy=accuracy,
            precision=precision,
            sensitivity=sensitivity,
            specificity=specificity,
@@ -198,9 +247,9 @@ data.frame(accuracy=accuracy,
            f1_score=f1_score,
            logloss= logloss_val
 )
-
+Test_performance
 # accuracy precision sensitivity specificity       auc  f1_score    logloss
-# 1 0.9702841 0.7611807   0.9979739   0.9674013 0.9940761 0.9833251 0.05335743
+# 1 0.9693594 0.7553103   0.9985412   0.9663213 0.9940496 0.9827963 0.05339355
 
 ################################# Hyper parameter tuning ################################# 
 
@@ -304,7 +353,7 @@ final_model_2 <- xgb.train(
   nrounds = 700
 )
 
-saveRDS(final_model_2,"GSTN_final_model_MS_KB.rds")
+# saveRDS(final_model_2,"GSTN_final_model_MS_KB.rds")
 
 overall_data$pred_vals=predict(final_model_2,newdata = doverall) #dtrain
 
@@ -313,11 +362,14 @@ overall_data$pred_vals=predict(final_model_2,newdata = doverall) #dtrain
 g1 <- roc(target ~ pred_vals, data = overall_data %>% filter(segment=="train"));g1
 coords(g1, "best", transpose = FALSE)
 
+# threshold specificity sensitivity
+# 1 0.1811275    0.973908   0.9973795
+
 ### rounds=700
 # threshold specificity sensitivity
 # 1 0.1735756    0.973264   0.9965556
 
-overall_data$pred_vals_final = ifelse(overall_data$pred_vals >0.1735756, 1, 0) 
+overall_data$pred_vals_final = ifelse(overall_data$pred_vals >0.1811275, 1, 0) 
 
 #### performance of train data
 
@@ -325,9 +377,9 @@ train_data = overall_data %>% filter(segment == "train")
 
 confusion_matrix = table(train_data$pred_vals_final,train_data$target)
 confusion_matrix
-#      0      1
-# 0 692088    255
-# 1  19012  73778
+# 0      1
+# 0 692546    194
+# 1  18554  73839
 
 accuracy  = (confusion_matrix[1,1]+confusion_matrix[2,2])/nrow(train_data)
 precision = (confusion_matrix[2,2])/sum(train_data$pred_vals_final)
@@ -343,18 +395,17 @@ f1_score=F1_Score(train_data$target,train_data$pred_vals_final)
 logloss_val=LogLoss(train_data$target,train_data$pred_vals)
 #bal_accuracy(truth = as.numeric(train_data$target),estimate = (train_data$pred_vals_final))
 
-data.frame(accuracy=accuracy,
-           precision=precision,
-           sensitivity=sensitivity,
-           specificity=specificity,
-           auc=auc,
-           f1_score=f1_score,
-           logloss= logloss_val
+train_performance=data.frame(accuracy=accuracy,
+                             precision=precision,
+                             sensitivity=sensitivity,
+                             specificity=specificity,
+                             auc=auc,
+                             f1_score=f1_score,
+                             logloss= logloss_val
 )
-
-### rounds=700
+train_performance
 # accuracy precision sensitivity specificity       auc  f1_score    logloss
-# 1 0.9754602 0.7951072   0.9965556    0.973264 0.9960979 0.9862716 0.04344728
+# 1 0.9761212 0.7991839   0.9973795    0.973908 0.9964086 0.9866452 0.04192136
 
 #### performance of test data
 
@@ -362,9 +413,9 @@ test_data = overall_data %>% filter(segment == "test")
 
 confusion_matrix = table(test_data$pred_vals_final,test_data$target)
 confusion_matrix
-#      0      1
-# 0 230369    176
-# 1   6665  24502
+# 0      1
+# 0 230484    196
+# 1   6550  24482
 
 accuracy  = (confusion_matrix[1,1]+confusion_matrix[2,2])/nrow(test_data)
 precision = (confusion_matrix[2,2])/sum(test_data$pred_vals_final)
@@ -378,17 +429,16 @@ auc <- performance(ROCPred, measure = "auc")
 auc <- auc@y.values[[1]]
 f1_score=F1_Score(test_data$target,test_data$pred_vals_final)
 logloss_val=LogLoss(test_data$target,test_data$pred_vals)
-#bal_accuracy(truth = as.numeric(test_data$target),estimate = (test_data$pred_vals_final))
 
-data.frame(accuracy=accuracy,
-           precision=precision,
-           sensitivity=sensitivity,
-           specificity=specificity,
-           auc=auc,
-           f1_score=f1_score,
-           logloss= logloss_val
+test_performance=data.frame(accuracy=accuracy,
+                            precision=precision,
+                            sensitivity=sensitivity,
+                            specificity=specificity,
+                            auc=auc,
+                            f1_score=f1_score,
+                            logloss= logloss_val
 )
-
-### rounds=700
+test_performance
 # accuracy precision sensitivity specificity       auc  f1_score    logloss
-# 1 0.9738606  0.786152   0.9928681   0.9718817 0.9949141 0.9853693 0.04901414
+# 1 0.9742236 0.7889276   0.9920577   0.9723668 0.9949046 0.9855767 0.04898082
+
